@@ -47,35 +47,44 @@ export async function POST(req: NextRequest) {
 
   const { companyName, name, email, password } = parsed.data;
 
-  const existing = await prisma.user.findFirst({ where: { email } });
-  if (existing) {
-    return NextResponse.json(
-      { error: "E-mail já cadastrado." },
-      { status: 409 }
-    );
-  }
+  try {
+    const existing = await prisma.user.findFirst({ where: { email } });
+    if (existing) {
+      return NextResponse.json(
+        { error: "E-mail já cadastrado." },
+        { status: 409 }
+      );
+    }
 
-  const slug = await uniqueSlug(companyName);
-  const passwordHash = await bcrypt.hash(password, 12);
+    const slug = await uniqueSlug(companyName);
+    const passwordHash = await bcrypt.hash(password, 12);
 
-  const tenant = await prisma.tenant.create({
-    data: {
-      name: companyName,
-      slug,
-      users: {
-        create: {
-          name,
-          email,
-          passwordHash,
-          role: "owner",
+    const tenant = await prisma.tenant.create({
+      data: {
+        name: companyName,
+        slug,
+        users: {
+          create: {
+            name,
+            email,
+            passwordHash,
+            role: "owner",
+          },
         },
       },
-    },
-    include: { users: true },
-  });
+      include: { users: true },
+    });
 
-  return NextResponse.json(
-    { tenantId: tenant.id, slug: tenant.slug },
-    { status: 201 }
-  );
+    return NextResponse.json(
+      { tenantId: tenant.id, slug: tenant.slug },
+      { status: 201 }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[register] error:", message);
+    return NextResponse.json(
+      { error: "Erro interno. Tente novamente.", detail: message },
+      { status: 500 }
+    );
+  }
 }
