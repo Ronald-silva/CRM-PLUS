@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { Bot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,27 +20,48 @@ export default function RegisterPage() {
     setError("");
 
     const fd = new FormData(e.currentTarget);
+    const email    = fd.get("email") as string;
+    const password = fd.get("password") as string;
     const body = {
       companyName: fd.get("companyName"),
-      name: fd.get("name"),
-      email: fd.get("email"),
-      password: fd.get("password"),
+      name:        fd.get("name"),
+      email,
+      password,
     };
 
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("/api/auth/register", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Erro ao criar conta.");
+      let data: Record<string, unknown> = {};
+      try { data = await res.json(); } catch { /* empty body */ }
+
+      if (!res.ok) {
+        setError((data.error as string) ?? `Erro ao criar conta (${res.status}). Tente novamente.`);
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login after successful registration
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.ok) {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        router.push("/login?registered=true");
+      }
+    } catch {
+      setError("Erro de conexão. Verifique sua internet e tente novamente.");
       setLoading(false);
-      return;
     }
-
-    router.push("/login?registered=true");
   }
 
   return (
